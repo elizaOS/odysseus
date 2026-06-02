@@ -12,9 +12,6 @@ polls.
 """
 import sys, types, asyncio
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
-from sqlalchemy import create_engine, Column, String, DateTime, Integer, Boolean, Text
-from sqlalchemy.orm import sessionmaker, declarative_base
 
 
 def _stub_heavy():
@@ -25,8 +22,18 @@ def _stub_heavy():
         sys.modules.setdefault(name, types.ModuleType(name))
 
 
-def _setup_isolated_db():
-    import core.database as cd
+def _setup_isolated_db(monkeypatch):
+    for name, mod in list(sys.modules.items()):
+        if name == "sqlalchemy" or name.startswith("sqlalchemy."):
+            if not getattr(mod, "__file__", None):
+                sys.modules.pop(name, None)
+
+    from sqlalchemy import create_engine, Column, String, DateTime, Integer, Text
+    from sqlalchemy.orm import sessionmaker, declarative_base
+
+    cd = types.ModuleType("core.database")
+    core_pkg = types.ModuleType("core")
+    core_pkg.__path__ = ["core"]
     B = declarative_base()
 
     class ScheduledTask(B):
@@ -56,13 +63,16 @@ def _setup_isolated_db():
     cd.SessionLocal = sessionmaker(bind=eng, autocommit=False, autoflush=False)
     cd.ScheduledTask = ScheduledTask
     cd.TaskRun = TaskRun
+    core_pkg.database = cd
+    monkeypatch.setitem(sys.modules, "core", core_pkg)
+    monkeypatch.setitem(sys.modules, "core.database", cd)
     return cd, ScheduledTask, TaskRun
 
 
 def _drive_scheduler(monkeypatch, pre_start_setup=None):
     """Build a TaskScheduler bypassing __init__ and run start() + two polls."""
     _stub_heavy()
-    cd, ScheduledTask, TaskRun = _setup_isolated_db()
+    cd, ScheduledTask, TaskRun = _setup_isolated_db(monkeypatch)
 
     from src.task_scheduler import TaskScheduler
     sch = TaskScheduler.__new__(TaskScheduler)
@@ -103,6 +113,8 @@ def _drive_scheduler(monkeypatch, pre_start_setup=None):
     # (stubbed to _never here); filter those out so the test only counts
     # real per-poll task dispatches.
     real_dispatches = [c for c in all_dispatched if c.__name__ != "_never"]
+    for coro in all_dispatched:
+        coro.close()
     return cd, ScheduledTask, TaskRun, real_dispatches
 
 

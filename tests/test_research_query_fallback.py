@@ -7,15 +7,21 @@ meaningful answer ("UK", "C++", "Rust") is a real topic and must be preserved.
 """
 import pytest
 
-from core.models import ChatMessage, Session
 from src.research_handler import ResearchHandler
 
 
 def _session(history):
-    return Session(
-        id="s1", name="t", endpoint_url="http://local.test", model="m",
-        history=[ChatMessage(role, content) for role, content in history],
-    )
+    class _Message:
+        def __init__(self, role, content):
+            self.role = role
+            self.content = content
+
+    class _Session:
+        pass
+
+    sess = _Session()
+    sess.history = [_Message(role, content) for role, content in history]
+    return sess
 
 
 @pytest.fixture
