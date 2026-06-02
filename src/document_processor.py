@@ -394,9 +394,11 @@ def build_user_content(
                         # Pull the PDF prose once — used as either intro_text
                         # (form path) or the doc body (plain path).
                         try:
-                            pdf_body_text = _process_pdf(path).lstrip(
-                                "\n[PDF content]:"
-                            ).strip()
+                            # NOT lstrip("\n[PDF content]:") — that strips a SET
+                            # of chars and eats into the body (e.g. the 'P' of
+                            # '[Page 1 text]'). Use the shared marker helper added
+                            # in #966, which this call site originally missed.
+                            pdf_body_text = strip_pdf_content_marker(_process_pdf(path))
                         except Exception:
                             pdf_body_text = None
 
