@@ -473,13 +473,9 @@ def rank_models(system, use_case=None, limit=50, search=None, sort="score", quan
             continue
 
         # On Apple Silicon the only serving engines are llama.cpp and Ollama,
-        # both GGUF-only (vLLM/SGLang are CUDA/ROCm and don't run on macOS). So
-        # a model is Metal-servable ONLY if it ships a real GGUF. Drop everything
-        # else — raw safetensors repos (which the catalog still tags with a
-        # default GGUF quant) and vLLM-only AWQ/GPTQ/FP8 builds alike. Without
-        # this the Cookbook recommends models the Mac can't run; on CUDA these
-        # stay visible because vLLM serves safetensors directly.
-        if apple_silicon and not (m.get("is_gguf") or m.get("gguf_sources")):
+        # both GGUF-only. Catalog hints such as is_gguf are not enough; only
+        # rows with real GGUF sources are servable here.
+        if apple_silicon and not m.get("gguf_sources"):
             continue
 
         # Format filter: AWQ tab -> only AWQ models, FP4 tab -> FP4-family models, etc.
